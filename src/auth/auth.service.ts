@@ -224,21 +224,42 @@ export class AuthService {
       ...new Set(courseIdsForClass(normalizedClass)),
     ];
 
-    const courses = configuredCourseIds.length
-      ? await this.prisma.course.findMany({
-          where: {
-            id: { in: configuredCourseIds },
-            status: true,
+    // Get configured courses and ALL active courses
+    // whose DB grade matches the student's Roman class.
+    const courses = await this.prisma.course.findMany({
+      where: {
+        status: true,
+        OR: [
+          // manually configured courses
+          ...(configuredCourseIds.length
+            ? [
+                {
+                  id: {
+                    in: configuredCourseIds,
+                  },
+                },
+              ]
+            : []),
+
+          // all courses matching student's class
+          {
+            grade: databaseClass,
           },
-          select: {
-            id: true,
-            title: true,
-            slug: true,
-          },
-        })
-      : [];
+        ],
+      },
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        grade: true,
+      },
+    });
+
+    // Remove duplicates
+    const finalCourseIds = [...new Set(courses.map((course) => course.id))];
 
     const foundCourseIds = new Set(courses.map((course) => course.id));
+
     const invalidCourseIds = configuredCourseIds.filter(
       (id) => !foundCourseIds.has(id),
     );
@@ -260,26 +281,34 @@ export class AuthService {
           mobile: token.mobile,
           mobile_prefix: token.mobilePrefix,
           name: dto.name.trim(),
+
+          // Store Roman class
           classGrade: databaseClass,
+
           schoolName: school.name,
           rollNo: dto.rollNo.trim(),
           section: dto.section.trim(),
           userType: UserType.STUDENT,
           password,
+
           roles: {
-            connect: { id: studentRole.id },
+            connect: {
+              id: studentRole.id,
+            },
           },
         },
+
         select: this.userResponseSelect(),
       });
 
-      if (configuredCourseIds.length) {
+      if (finalCourseIds.length) {
         await tx.userEnrolledCourse.createMany({
-          data: configuredCourseIds.map((courseId) => ({
+          data: finalCourseIds.map((courseId) => ({
             userId: createdUser.id,
             courseId,
             sourceType: EnrollmentSource.INDIVIDUAL,
           })),
+
           skipDuplicates: true,
         });
       }
