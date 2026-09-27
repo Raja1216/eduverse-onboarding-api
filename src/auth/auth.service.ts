@@ -13,6 +13,7 @@ import { ConfigService } from "@nestjs/config";
 import { hash } from "bcryptjs";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import {
+  classGradeForDatabase,
   courseIdsForClass,
   normalizeClassGrade,
 } from "../config/class-course-map";
@@ -218,6 +219,7 @@ export class AuthService {
     }
 
     const normalizedClass = normalizeClassGrade(dto.classGrade);
+    const databaseClass = classGradeForDatabase(dto.classGrade);
     const configuredCourseIds = [
       ...new Set(courseIdsForClass(normalizedClass)),
     ];
@@ -258,7 +260,7 @@ export class AuthService {
           mobile: token.mobile,
           mobile_prefix: token.mobilePrefix,
           name: dto.name.trim(),
-          classGrade: normalizedClass,
+          classGrade: databaseClass,
           schoolName: school.name,
           rollNo: dto.rollNo.trim(),
           section: dto.section.trim(),
