@@ -93,6 +93,11 @@ export class AuthService {
     }
 
     const internationalMobile = this.msg91Mobile(mobilePrefix, mobile);
+    console.log("OTP DEBUG:", {
+      mobilePrefix,
+      mobile,
+      internationalMobile,
+    });
 
     try {
       await this.msg91.verifyOtp(internationalMobile, dto.otp);
@@ -380,7 +385,15 @@ export class AuthService {
   }
 
   private cleanMobile(value: string): string {
-    return value.replace(/\D/g, "");
+    let mobile = value.replace(/\D/g, "");
+
+    // If frontend accidentally sends country code inside mobile
+    // example: 919876543210
+    if (mobile.length === 12 && mobile.startsWith("91")) {
+      mobile = mobile.substring(2);
+    }
+
+    return mobile;
   }
 
   private cleanPrefix(value: string): string {

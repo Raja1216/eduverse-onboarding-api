@@ -1,5 +1,5 @@
-import { BadGatewayException, Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { BadGatewayException, Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 
 interface Msg91Response {
   type?: string;
@@ -13,58 +13,56 @@ export class Msg91Service {
   constructor(private readonly config: ConfigService) {}
 
   private isSuccessfulMsg91Response(response: Msg91Response): boolean {
-    const type = String(response.type ?? '').toLowerCase();
-    const message = String(response.message ?? '').toLowerCase();
+    const type = String(response.type ?? "").toLowerCase();
+    const message = String(response.message ?? "").toLowerCase();
 
     return (
-      type === 'success' ||
-      message.includes('success') ||
-      message.includes('verified') ||
+      type === "success" ||
+      message.includes("success") ||
+      message.includes("verified") ||
       Boolean(response.request_id)
     );
   }
 
-  async sendOtp(
-    internationalMobile: string,
-  ): Promise<Msg91Response> {
-    const authKey =
-      this.config.getOrThrow<string>('MSG91_AUTH_KEY');
+  async sendOtp(internationalMobile: string): Promise<Msg91Response> {
+    const authKey = this.config.getOrThrow<string>("MSG91_AUTH_KEY");
 
-    const templateId =
-      this.config.getOrThrow<string>('MSG91_OTP_TEMPLATE_ID');
+    const templateId = this.config.getOrThrow<string>("MSG91_OTP_TEMPLATE_ID");
 
-    const url = new URL(
-      'https://control.msg91.com/api/v5/otp',
-    );
+    const url = new URL("https://control.msg91.com/api/v5/otp");
 
-    url.searchParams.set('template_id', templateId);
-    url.searchParams.set('mobile', internationalMobile);
-    url.searchParams.set('authkey', authKey);
+    url.searchParams.set("template_id", templateId);
+    url.searchParams.set("mobile", internationalMobile);
+
+    console.log("MSG91 REQUEST:", {
+      mobile: internationalMobile,
+      templateId,
+      authKeyLoaded: !!authKey,
+    });
 
     const response = await fetch(url.toString(), {
-      method: 'POST',
+      method: "POST",
       headers: {
-        accept: 'application/json',
-        'content-type': 'application/json',
+        accept: "application/json",
+        "content-type": "application/json",
+        authkey: authKey,
       },
       body: JSON.stringify({}),
     });
 
     const result = (await response.json()) as Msg91Response;
 
-    console.log('MSG91 SEND OTP:', result);
+    console.log("MSG91 SEND OTP:", {
+      httpStatus: response.status,
+      result,
+    });
 
-    if (
-      !response.ok ||
-      !this.isSuccessfulMsg91Response(result)
-    ) {
-      console.error('MSG91 send OTP error:', result);
+    if (!response.ok || !this.isSuccessfulMsg91Response(result)) {
+      console.error("MSG91 send OTP error:", result);
 
       throw new BadGatewayException({
         status: false,
-        message: String(
-          result.message ?? 'Unable to send OTP',
-        ),
+        message: String(result.message ?? "Unable to send OTP"),
         provider: result,
       });
     }
@@ -72,42 +70,33 @@ export class Msg91Service {
     return result;
   }
 
-  async resendOtp(
-    internationalMobile: string,
-  ): Promise<Msg91Response> {
-    const authKey =
-      this.config.getOrThrow<string>('MSG91_AUTH_KEY');
+  async resendOtp(internationalMobile: string): Promise<Msg91Response> {
+    const authKey = this.config.getOrThrow<string>("MSG91_AUTH_KEY");
 
-    const url = new URL(
-      'https://control.msg91.com/api/v5/otp/retry',
-    );
+    const url = new URL("https://control.msg91.com/api/v5/otp/retry");
 
-    url.searchParams.set('mobile', internationalMobile);
-    url.searchParams.set('authkey', authKey);
-    url.searchParams.set('retrytype', 'text');
+    url.searchParams.set("mobile", internationalMobile);
+    url.searchParams.set("retrytype", "text");
 
     const response = await fetch(url.toString(), {
-      method: 'GET',
+      method: "GET",
       headers: {
-        accept: 'application/json',
+        accept: "application/json",
+        "content-type": "application/json",
+        authkey: authKey,
       },
     });
 
     const result = (await response.json()) as Msg91Response;
 
-    console.log('MSG91 RESEND OTP:', result);
+    console.log("MSG91 RESEND OTP:", result);
 
-    if (
-      !response.ok ||
-      !this.isSuccessfulMsg91Response(result)
-    ) {
-      console.error('MSG91 resend OTP error:', result);
+    if (!response.ok || !this.isSuccessfulMsg91Response(result)) {
+      console.error("MSG91 resend OTP error:", result);
 
       throw new BadGatewayException({
         status: false,
-        message: String(
-          result.message ?? 'Unable to resend OTP',
-        ),
+        message: String(result.message ?? "Unable to resend OTP"),
         provider: result,
       });
     }
@@ -119,37 +108,30 @@ export class Msg91Service {
     internationalMobile: string,
     otp: string,
   ): Promise<Msg91Response> {
-    const authKey =
-      this.config.getOrThrow<string>('MSG91_AUTH_KEY');
+    const authKey = this.config.getOrThrow<string>("MSG91_AUTH_KEY");
 
-    const url = new URL(
-      'https://control.msg91.com/api/v5/otp/verify',
-    );
+    const url = new URL("https://control.msg91.com/api/v5/otp/verify");
 
-    url.searchParams.set('mobile', internationalMobile);
-    url.searchParams.set('otp', otp);
+    url.searchParams.set("mobile", internationalMobile);
+    url.searchParams.set("otp", otp);
 
     const response = await fetch(url.toString(), {
-      method: 'GET',
+      method: "GET",
       headers: {
-        accept: 'application/json',
+        accept: "application/json",
+        "content-type": "application/json",
         authkey: authKey,
       },
     });
 
     const result = (await response.json()) as Msg91Response;
 
-    console.log('MSG91 VERIFY OTP:', result);
+    console.log("MSG91 VERIFY OTP:", result);
 
-    if (
-      !response.ok ||
-      !this.isSuccessfulMsg91Response(result)
-    ) {
-      console.error('MSG91 verify OTP error:', result);
+    if (!response.ok || !this.isSuccessfulMsg91Response(result)) {
+      console.error("MSG91 verify OTP error:", result);
 
-      throw new Error(
-        String(result.message ?? 'Invalid or expired OTP'),
-      );
+      throw new Error(String(result.message ?? "Invalid or expired OTP"));
     }
 
     return result;
