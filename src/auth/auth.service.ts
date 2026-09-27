@@ -289,6 +289,7 @@ export class AuthService {
           rollNo: dto.rollNo.trim(),
           section: dto.section.trim(),
           userType: UserType.STUDENT,
+          come_from: "global-registration",
           password,
 
           roles: {
