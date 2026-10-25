@@ -201,6 +201,7 @@ model User {
   pendingRegistrations       PendingRegistration[]
   createdGroups              Group[]                     @relation("GroupCreator")
   groupMemberships           GroupUser[]               @relation("GroupUserMember")
+  eventUser                  EventUsers[]               @relation("EventUsers")
   xpWallet                   UserXpWallet?
   xpTransactions             XpTransaction[]
   userBadges                 UserBadge[]
@@ -289,6 +290,7 @@ model Course {
   projects                   Project[]                   @relation("CourseProjects")
   gradeScale                 GradeScale?                 @relation("CourseGradeScale")
   institutionCourses         InstitutionCourse[]         @relation("InstitutionCourses")
+  EventSchoolCourses         EventSchoolCourses[]         @relation("EventSchoolCourses")
   live_classes               live_classes[]
   userCompletionCertificates UserCompletionCertificate[] @relation("UserCompletionCertificates")
   pendingRegistrations       PendingRegistration[]
@@ -414,6 +416,8 @@ model CourseSubject {
   course    Course   @relation("CourseSubjects", fields: [courseId], references: [id], onDelete: Cascade)
   subject   Subject  @relation("SubjectCourses", fields: [subjectId], references: [id])
 
+  @@index([courseId, subjectId])
+
   @@map("course_subjects")
 }
 
@@ -447,6 +451,8 @@ model SubjectChapter {
   updatedAt DateTime @updatedAt
   subject   Subject  @relation("SubjectChapters", fields: [subjectId], references: [id])
   chapter   Chapter  @relation("SubjectChapters", fields: [chapterId], references: [id])
+
+  @@index([subjectId, chapterId])
 
   @@map("subject_chapters")
 }
@@ -550,6 +556,7 @@ model Quiz {
   quizAttempts               QuizAttempt[]
   userXPEarneds              UserXPEarned[]
   userCompletionCretificates UserCompletionCertificate[] @relation("UserCompletionCertificates")
+  certificateTemplates       CertificateTemplate[]       @relation("QuizCertificateTemplates")
 
   @@map("quizzes")
 }
@@ -586,6 +593,8 @@ model QuizAttempt {
 
   answers                    QuestionAttempt[]           @relation("AttemptAnswers")
   userCompletionCretificates UserCompletionCertificate[] @relation("UserCompletionCertificates")
+
+  @@index([userId, quizId])
 
   @@map("quiz_attempts")
 }
@@ -629,6 +638,8 @@ model Question {
   quiz             Quiz              @relation(fields: [quizId], references: [id], onDelete: Cascade)
   questionAttempts QuestionAttempt[]
   options          QuestionOption[]  @relation("QuestionOptions")
+
+  @@index([quizId])
 
   @@map("questions")
 }
@@ -872,8 +883,9 @@ model Project {
 
   creator User @relation("TeacherProjects", fields: [createdBy], references: [id])
 
-  rubrics     ProjectRubric[]     @relation("ProjectRubrics")
-  submissions ProjectSubmission[] @relation("ProjectSubmissions")
+  rubrics              ProjectRubric[]             @relation("ProjectRubrics")
+  submissions          ProjectSubmission[]         @relation("ProjectSubmissions")
+  certificateTemplates CertificateTemplate[]       @relation("ProjectCertificateTemplates")
 
   @@index([courseId])
   @@index([subjectId])
@@ -1483,6 +1495,8 @@ model CertificateTemplate {
   
   institutionId     Int?
   courseId          Int?
+  quizId            Int?
+  projectId         Int?
   isDefault         Boolean  @default(false)
   status            Boolean  @default(true)
   
@@ -1491,9 +1505,13 @@ model CertificateTemplate {
 
   institution       Institution? @relation("InstitutionCertificateTemplates", fields: [institutionId], references: [id], onDelete: Cascade)
   course            Course?      @relation("CourseCertificateTemplates", fields: [courseId], references: [id], onDelete: SetNull)
+  quiz              Quiz?        @relation("QuizCertificateTemplates", fields: [quizId], references: [id], onDelete: SetNull)
+  project           Project?     @relation("ProjectCertificateTemplates", fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([institutionId])
   @@index([courseId])
+  @@index([quizId])
+  @@index([projectId])
   @@map("certificate_templates")
 }
 
@@ -1670,8 +1688,8 @@ model Badge {
   id                   Int           @id @default(autoincrement())
   name                 String        @db.VarChar(100)
   slug                 String        @unique @db.VarChar(100)
-  description          String        @db.Text
-  icon                 String        @db.VarChar(255)
+  description          String?        @db.Text
+  icon                 String        @db.Text
   category             BadgeCategory @default(LEARNING)
   rarity               BadgeRarity   @default(COMMON)
   conditionType        String        @db.VarChar(80)
@@ -1679,6 +1697,16 @@ model Badge {
   xpRewardEngagement   Int           @default(0)
   xpRewardPerformance  Int           @default(0)
   isActive             Boolean       @default(true)
+
+  // New fields
+  shortDescription     String?       @db.VarChar(255)
+  background           String?       @db.Text
+  targetScope          String        @default("ALL") @db.VarChar(30)
+  targetId             String?       @db.VarChar(100)
+  targetLabel          String?       @db.VarChar(255)
+  targetPath           Json?
+  threshold            Int?
+
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
@@ -1687,6 +1715,8 @@ model Badge {
 
   @@index([category])
   @@index([rarity])
+  @@index([conditionType])
+  @@index([isActive])
   @@map("badges")
 }
 
@@ -1838,4 +1868,85 @@ model GamificationConfig {
   updatedAt   DateTime @updatedAt
 
   @@map("gamification_configs")
+}
+
+model SystemSetting {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique @db.VarChar(100)
+  value       String   @db.Text
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+
+model ExternalEvents {
+  id          Int          @id @default(autoincrement())
+  slug        String       @unique
+  name        String       
+  description String?
+  status      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  ExternalEventUsers EventUsers[] @relation("ExternalEventUser")
+
+  @@map("external_events")
+}
+
+model EventSchools {
+  id          Int          @id @default(autoincrement())
+  name        String       
+  description String?
+  state       String?
+  board       String?
+  district    String?
+  status      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  EventSchoolCourses EventSchoolCourses[] @relation("EventSchoolCourse")
+  EventSchoolUser EventUsers[] @relation("EventSchoolUser")
+
+  @@map("event_schools")
+}
+
+model EventSchoolCourses {
+  id                  Int          @id @default(autoincrement())
+  class               String?
+  event_school_id     Int
+  course_id           Int          @unique
+  status              Boolean      @default(true)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  EventSchool EventSchools @relation("EventSchoolCourse",fields: [event_school_id],references: [id],onDelete: Cascade)
+  Course Course @relation("EventSchoolCourses",fields: [course_id],references: [id],onDelete: Cascade)
+
+  @@index([event_school_id])
+  @@index([course_id])
+
+  @@map("event_school_courses")
+}
+
+model EventUsers {
+  id                  Int          @id @default(autoincrement())
+  user_id             Int       
+  event_school_id     Int?
+  event_id            Int          @unique
+  status              Boolean      @default(true)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  EventSchool EventSchools? @relation("EventSchoolUser",fields: [event_school_id],references: [id],onDelete: Cascade)
+  ExternalEvent ExternalEvents @relation("ExternalEventUser",fields: [event_id],references: [id],onDelete: Cascade)
+  User User @relation("EventUsers",fields: [user_id],references: [id],onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([event_school_id])
+  @@index([event_id])
+
+  @@map("event_users")
 }

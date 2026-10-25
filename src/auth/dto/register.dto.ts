@@ -1,11 +1,12 @@
-import { Type } from 'class-transformer';
+import { Type } from "class-transformer";
 import {
   IsInt,
+  IsOptional,
   IsString,
   MaxLength,
   Min,
   MinLength,
-} from 'class-validator';
+} from "class-validator";
 
 export class RegisterDto {
   @IsString()
@@ -17,10 +18,16 @@ export class RegisterDto {
   @MaxLength(120)
   name: string;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  schoolId: number;
+  schoolId?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(191)
+  schoolName?: string;
 
   @IsString()
   @MaxLength(30)

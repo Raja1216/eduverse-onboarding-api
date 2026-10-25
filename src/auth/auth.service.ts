@@ -185,25 +185,49 @@ export class AuthService {
       });
     }
 
-    const school = await this.prisma.institution.findFirst({
-      where: {
-        id: dto.schoolId,
-        status: true,
-      },
-      select: {
-        id: true,
-        name: true,
-      },
-    });
+    const hasSchoolId = dto.schoolId !== undefined && dto.schoolId !== null;
 
-    if (!school) {
+    const suppliedSchoolName = dto.schoolName?.trim() || "";
+
+    if (hasSchoolId === Boolean(suppliedSchoolName)) {
       throw new UnprocessableEntityException({
         status: false,
         message: "Validation failed",
         errors: {
-          schoolId: ["Selected school was not found"],
+          school: ["Provide either schoolId or schoolName, but not both"],
         },
       });
+    }
+
+    let selectedSchoolId: number | null = null;
+    let finalSchoolName = "";
+
+    if (hasSchoolId) {
+      const school = await this.prisma.eventSchools.findFirst({
+        where: {
+          id: dto.schoolId!,
+          status: true,
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+      });
+
+      if (!school) {
+        throw new UnprocessableEntityException({
+          status: false,
+          message: "Validation failed",
+          errors: {
+            schoolId: ["Selected school was not found"],
+          },
+        });
+      }
+
+      selectedSchoolId = school.id;
+      finalSchoolName = school.name;
+    } else {
+      finalSchoolName = suppliedSchoolName;
     }
 
     const roleSlug = this.config.get<string>("STUDENT_ROLE_SLUG") || "student";
@@ -271,37 +295,82 @@ export class AuthService {
       });
     }
 
+    // Existing code: Validate configured course IDs
+    if (invalidCourseIds.length) {
+      throw new InternalServerErrorException({
+        status: false,
+        message: `Class ${normalizedClass} has invalid/inactive configured course IDs: ${invalidCourseIds.join(", ")}`,
+      });
+    }
+
+    // ==========================================
+    // NEW: Validate registration event
+    // ==========================================
+    const eventId = Number(this.config.get<string>("REGISTRATION_EVENT_ID"));
+
+    if (!Number.isSafeInteger(eventId) || eventId < 1) {
+      throw new InternalServerErrorException({
+        status: false,
+        message: "Registration event is not configured",
+      });
+    }
+
+    const event = await this.prisma.externalEvents.findFirst({
+      where: {
+        id: eventId,
+        status: true,
+      },
+      select: { id: true },
+    });
+
+    if (!event) {
+      throw new UnprocessableEntityException({
+        status: false,
+        message: "Registration event is not available",
+      });
+    }
+
+    // ==========================================
+    // Existing code: Hash password
+    // ==========================================
     const password = await hash(dto.password, 12);
 
+    // ==========================================
+    // Existing transaction with EventUsers
+    // ==========================================
     const user = await this.prisma.$transaction(async (tx) => {
-      // schoolId is intentionally NOT written to InstitutionMember.
-      // Only the selected institution name is copied to users.schoolName.
       const createdUser = await tx.user.create({
         data: {
           mobile: token.mobile,
           mobile_prefix: token.mobilePrefix,
           name: dto.name.trim(),
-
-          // Store Roman class
           classGrade: databaseClass,
-
-          schoolName: school.name,
+          schoolName: finalSchoolName,
           rollNo: dto.rollNo.trim(),
           section: dto.section.trim(),
           userType: UserType.STUDENT,
           come_from: "global-registration",
           password,
-
           roles: {
             connect: {
               id: studentRole.id,
             },
           },
         },
-
         select: this.userResponseSelect(),
       });
 
+      // NEW: Insert into event_users
+      await tx.eventUsers.create({
+        data: {
+          user_id: createdUser.id,
+          event_id: eventId,
+          event_school_id: selectedSchoolId,
+          status: true,
+        },
+      });
+
+      // Existing course enrollment
       if (finalCourseIds.length) {
         await tx.userEnrolledCourse.createMany({
           data: finalCourseIds.map((courseId) => ({
@@ -309,7 +378,6 @@ export class AuthService {
             courseId,
             sourceType: EnrollmentSource.INDIVIDUAL,
           })),
-
           skipDuplicates: true,
         });
       }
