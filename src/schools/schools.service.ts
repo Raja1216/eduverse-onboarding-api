@@ -1,12 +1,9 @@
-
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
 export class SchoolsService {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   // 1. Get boards
   async getBoards() {
@@ -23,13 +20,13 @@ export class SchoolsService {
         name: true,
       },
       orderBy: {
-        name: 'asc',
+        name: "asc",
       },
     });
 
     return {
       status: true,
-      message: 'Boards fetched successfully',
+      message: "Boards fetched successfully",
       data: boards,
     };
   }
@@ -38,9 +35,9 @@ export class SchoolsService {
   async getStates(boardId: number) {
     const states = await this.prisma.eventSchoolState.findMany({
       where: {
-        boardId,
         schools: {
           some: {
+            boardId,
             status: true,
           },
         },
@@ -48,55 +45,53 @@ export class SchoolsService {
       select: {
         id: true,
         name: true,
-        boardId: true,
       },
       orderBy: {
-        name: 'asc',
+        name: "asc",
       },
     });
 
     return {
       status: true,
-      message: 'States fetched successfully',
+      message: "States fetched successfully",
       data: states,
     };
   }
 
   // 3. Get districts by state ID
-  async getDistricts(stateId: number) {
-    const districts =
-      await this.prisma.eventSchoolDistrict.findMany({
-        where: {
-          stateId,
-          schools: {
-            some: {
-              status: true,
-            },
+  async getDistricts(boardId: number, stateId: number) {
+    const districts = await this.prisma.eventSchoolDistrict.findMany({
+      where: {
+        stateId,
+
+        schools: {
+          some: {
+            boardId,
+            status: true,
           },
         },
-        select: {
-          id: true,
-          name: true,
-          stateId: true,
-        },
-        orderBy: {
-          name: 'asc',
-        },
-      });
+      },
+
+      select: {
+        id: true,
+        name: true,
+        stateId: true,
+      },
+
+      orderBy: {
+        name: "asc",
+      },
+    });
 
     return {
       status: true,
-      message: 'Districts fetched successfully',
+      message: "Districts fetched successfully",
       data: districts,
     };
   }
 
   // 4. Filter schools by IDs
-  async list(
-    boardId?: number,
-    stateId?: number,
-    districtId?: number,
-  ) {
+  async list(boardId?: number, stateId?: number, districtId?: number) {
     const schools = await this.prisma.eventSchools.findMany({
       where: {
         status: true,
@@ -132,7 +127,7 @@ export class SchoolsService {
       },
 
       orderBy: {
-        name: 'asc',
+        name: "asc",
       },
     });
 
@@ -151,7 +146,7 @@ export class SchoolsService {
 
     return {
       status: true,
-      message: 'Schools fetched successfully',
+      message: "Schools fetched successfully",
       data,
     };
   }
