@@ -4,7 +4,9 @@ import {
   Get,
   Query,
   BadRequestException,
+  ParseIntPipe,
 } from '@nestjs/common';
+
 import { SchoolsService } from './schools.service';
 
 @Controller('schools')
@@ -13,47 +15,64 @@ export class SchoolsController {
     private readonly schoolsService: SchoolsService,
   ) {}
 
+  // 1. Get boards
   @Get('boards')
   getBoards() {
     return this.schoolsService.getBoards();
   }
 
+  // 2. Get states by board ID
   @Get('states')
-  getStates(@Query('board') board?: string) {
-    if (!board?.trim()) {
-      throw new BadRequestException('Board is required');
-    }
-
-    return this.schoolsService.getStates(board.trim());
+  getStates(
+    @Query('boardId', ParseIntPipe) boardId: number,
+  ) {
+    return this.schoolsService.getStates(boardId);
   }
 
+  // 3. Get districts by state ID
   @Get('districts')
   getDistricts(
-    @Query('board') board?: string,
-    @Query('state') state?: string,
+    @Query('stateId', ParseIntPipe) stateId: number,
   ) {
-    if (!board?.trim() || !state?.trim()) {
+    return this.schoolsService.getDistricts(stateId);
+  }
+
+  // 4. Get schools using optional filters
+  @Get()
+  list(
+    @Query('boardId') boardId?: string,
+    @Query('stateId') stateId?: string,
+    @Query('districtId') districtId?: string,
+  ) {
+    return this.schoolsService.list(
+      this.parseOptionalId(boardId, 'boardId'),
+      this.parseOptionalId(stateId, 'stateId'),
+      this.parseOptionalId(districtId, 'districtId'),
+    );
+  }
+
+  private parseOptionalId(
+    value: string | undefined,
+    field: string,
+  ): number | undefined {
+    if (value === undefined || value.trim() === '') {
+      return undefined;
+    }
+
+    if (!/^[1-9]\d*$/.test(value.trim())) {
       throw new BadRequestException(
-        'Board and state are required',
+        `${field} must be a positive integer`,
       );
     }
 
-    return this.schoolsService.getDistricts(
-      board.trim(),
-      state.trim(),
-    );
-  }
+    const id = Number(value);
 
-  @Get()
-  list(
-    @Query('board') board?: string,
-    @Query('state') state?: string,
-    @Query('district') district?: string,
-  ) {
-    return this.schoolsService.list(
-      board,
-      state,
-      district,
-    );
+    if (!Number.isSafeInteger(id)) {
+      throw new BadRequestException(
+        `Invalid ${field}`,
+      );
+    }
+
+    return id;
   }
 }

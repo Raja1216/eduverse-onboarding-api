@@ -4,24 +4,28 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class SchoolsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+  ) {}
 
-  // 1. Get all available boards
+  // 1. Get boards
   async getBoards() {
-    const rows = await this.prisma.eventSchools.findMany({
+    const boards = await this.prisma.eventSchoolBoard.findMany({
       where: {
-        status: true,
-        board: { not: null },
+        schools: {
+          some: {
+            status: true,
+          },
+        },
       },
-      distinct: ['board'],
-      select: { board: true },
+      select: {
+        id: true,
+        name: true,
+      },
+      orderBy: {
+        name: 'asc',
+      },
     });
-
-    const boards = [...new Set(
-      rows.map(r => r.board?.trim()).filter(
-        (value): value is string => Boolean(value),
-      ),
-    )].sort((a, b) => a.localeCompare(b));
 
     return {
       status: true,
@@ -30,23 +34,26 @@ export class SchoolsService {
     };
   }
 
-  // 2. Get states based on board
-  async getStates(board: string) {
-    const rows = await this.prisma.eventSchools.findMany({
+  // 2. Get states by board ID
+  async getStates(boardId: number) {
+    const states = await this.prisma.eventSchoolState.findMany({
       where: {
-        status: true,
-        board,
-        state: { not: null },
+        boardId,
+        schools: {
+          some: {
+            status: true,
+          },
+        },
       },
-      distinct: ['state'],
-      select: { state: true },
+      select: {
+        id: true,
+        name: true,
+        boardId: true,
+      },
+      orderBy: {
+        name: 'asc',
+      },
     });
-
-    const states = [...new Set(
-      rows.map(r => r.state?.trim()).filter(
-        (value): value is string => Boolean(value),
-      ),
-    )].sort((a, b) => a.localeCompare(b));
 
     return {
       status: true,
@@ -55,24 +62,27 @@ export class SchoolsService {
     };
   }
 
-  // 3. Get districts based on board and state
-  async getDistricts(board: string, state: string) {
-    const rows = await this.prisma.eventSchools.findMany({
-      where: {
-        status: true,
-        board,
-        state,
-        district: { not: null },
-      },
-      distinct: ['district'],
-      select: { district: true },
-    });
-
-    const districts = [...new Set(
-      rows.map(r => r.district?.trim()).filter(
-        (value): value is string => Boolean(value),
-      ),
-    )].sort((a, b) => a.localeCompare(b));
+  // 3. Get districts by state ID
+  async getDistricts(stateId: number) {
+    const districts =
+      await this.prisma.eventSchoolDistrict.findMany({
+        where: {
+          stateId,
+          schools: {
+            some: {
+              status: true,
+            },
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+          stateId: true,
+        },
+        orderBy: {
+          name: 'asc',
+        },
+      });
 
     return {
       status: true,
@@ -81,29 +91,68 @@ export class SchoolsService {
     };
   }
 
-  // 4. Filter schools
-  async list(board?: string, state?: string, district?: string) {
+  // 4. Filter schools by IDs
+  async list(
+    boardId?: number,
+    stateId?: number,
+    districtId?: number,
+  ) {
     const schools = await this.prisma.eventSchools.findMany({
       where: {
         status: true,
-        ...(board?.trim() && { board: board.trim() }),
-        ...(state?.trim() && { state: state.trim() }),
-        ...(district?.trim() && { district: district.trim() }),
+        ...(boardId !== undefined && { boardId }),
+        ...(stateId !== undefined && { stateId }),
+        ...(districtId !== undefined && { districtId }),
       },
+
       select: {
         id: true,
         name: true,
-        board: true,
-        state: true,
-        district: true,
+        boardId: true,
+        stateId: true,
+        districtId: true,
+
+        boardRelation: {
+          select: {
+            name: true,
+          },
+        },
+
+        stateRelation: {
+          select: {
+            name: true,
+          },
+        },
+
+        districtRelation: {
+          select: {
+            name: true,
+          },
+        },
       },
-      orderBy: { name: 'asc' },
+
+      orderBy: {
+        name: 'asc',
+      },
     });
+
+    const data = schools.map((school) => ({
+      id: school.id,
+      name: school.name,
+
+      boardId: school.boardId,
+      stateId: school.stateId,
+      districtId: school.districtId,
+
+      board: school.boardRelation?.name ?? null,
+      state: school.stateRelation?.name ?? null,
+      district: school.districtRelation?.name ?? null,
+    }));
 
     return {
       status: true,
       message: 'Schools fetched successfully',
-      data: schools,
+      data,
     };
   }
 }

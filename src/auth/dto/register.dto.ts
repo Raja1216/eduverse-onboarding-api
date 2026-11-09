@@ -33,13 +33,15 @@ export class RegisterDto {
   @MaxLength(30)
   classGrade: string;
 
+  @IsOptional()
   @IsString()
   @MaxLength(30)
-  section: string;
+  section?: string;
 
+  @IsOptional()
   @IsString()
   @MaxLength(50)
-  rollNo: string;
+  rollNo?: string;
 
   @IsString()
   @MinLength(8)
